@@ -11,7 +11,6 @@ func Cors(next http.Handler) http.Handler {
 		fmt.Println("this is origin", origin, r.Header.Get("Origin"))
 
 		if origin == "https://localhost:3001" {
-
 			w.Header().Set("Access-Control-Allow-Origin", "https://localhost:3000")
 		}
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")

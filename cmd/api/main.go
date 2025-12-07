@@ -90,7 +90,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:    port,
-		Handler: mw.SecurityHandler(mw.Cors(router)),
+		Handler: mw.Compression(mw.ResponseTime(mw.SecurityHandler(mw.Cors(router)))),
 		// Handler:   router,
 		// Handler:   middlewares.Cors(router),
 		TLSConfig: tlsConfig,
