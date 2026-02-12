@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	mw "restapi/internal/api/middlewares"
+	"time"
 )
 
 type User struct {
@@ -23,6 +24,18 @@ func teachers(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		w.Write([]byte("Hello From teachers using GET"))
 	case "POST":
+		fmt.Println("Body: ", r.Body)
+		fmt.Println("Query: ", r.URL.Query())
+		fmt.Println("name: ", r.URL.Query().Get("name"))
+		fmt.Println("age: ", r.URL.Query().Get("age"))
+
+		err := r.ParseForm()
+		if err != nil {
+			fmt.Println("Error parsing form: ", err)
+		}
+		fmt.Println("Form: ", r.Form)
+		fmt.Println("name: ", r.FormValue("name"))
+		fmt.Println("age: ", r.FormValue("age"))
 		w.Write([]byte("Hello From teachers using POST"))
 	case "PUT":
 		w.Write([]byte("Hello From teachers using PUT"))
@@ -71,6 +84,8 @@ func exec(w http.ResponseWriter, r *http.Request) {
 func main() {
 	port := ":3001"
 
+	rl := mw.NewRateLimiter(5, time.Minute)
+
 	router := http.NewServeMux()
 
 	router.HandleFunc("/", root)
@@ -88,9 +103,16 @@ func main() {
 		MinVersion: tls.VersionTLS12,
 	}
 
+	hppOptions := &mw.HppOptions{
+		CheckQuery:                  true,
+		CheckBody:                   true,
+		CheckBodyOnlyForContentType: "application/x-www-form-urlencoded",
+		WhiteList:                   []string{"first name", "last name", "email", "phone no"},
+	}
+
 	server := &http.Server{
 		Addr:    port,
-		Handler: mw.Compression(mw.ResponseTime(mw.SecurityHandler(mw.Cors(router)))),
+		Handler: mw.Hpp(*hppOptions)(rl.RateLimiterMiddleware(mw.Compression(mw.ResponseTime(mw.SecurityHandler(mw.Cors(router)))))),
 		// Handler:   router,
 		// Handler:   middlewares.Cors(router),
 		TLSConfig: tlsConfig,
