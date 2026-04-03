@@ -6,7 +6,9 @@ import (
 )
 
 func Cors(next http.Handler) http.Handler {
+	fmt.Println("This is a cors middleware")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("===> CORS Middleware START")
 		origin := r.Header.Get("Origin")
 		fmt.Println("this is origin", origin, r.Header.Get("Origin"))
 
@@ -20,8 +22,10 @@ func Cors(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Max-Age", "3600")
 
 		if r.Method == "OPTIONS" {
+			fmt.Println("<=== CORS Middleware END (OPTIONS)")
 			return
 		}
 		next.ServeHTTP(w, r)
+		fmt.Println("<=== CORS Middleware END")
 	})
 }

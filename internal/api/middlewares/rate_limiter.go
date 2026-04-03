@@ -36,17 +36,21 @@ func (rl *RateLimiter) ResetVisitorsCount() {
 }
 
 func (rl *RateLimiter) RateLimiterMiddleware(next http.Handler) http.Handler {
+	fmt.Println("This is a rate limiter middleware")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("===> RateLimiter Middleware START")
 		rl.mu.Lock()
 		defer rl.mu.Unlock()
 		visitorIp := r.RemoteAddr
 		if rl.visitors[visitorIp] > rl.limit {
 			http.Error(w, "Too Many Request", http.StatusTooManyRequests)
+			fmt.Println("<=== RateLimiter Middleware END (Rate limit exceeded)")
 			return
 		}
 		rl.visitors[visitorIp]++
 		fmt.Printf("Visitor IP: %s, Request Count: %d\n", visitorIp, rl.visitors[visitorIp])
 
 		next.ServeHTTP(w, r)
+		fmt.Println("<=== RateLimiter Middleware END")
 	})
 }

@@ -22,8 +22,9 @@ func (rw *responseWriter) WriteHeader(code int) {
 }
 
 func ResponseTime(next http.Handler) http.Handler {
+	fmt.Println("This is a response time middleware")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Receiving Request in ResponseTime")
+		fmt.Println("===> ResponseTime Middleware START")
 
 		wrappedWriter := &responseWriter{
 			ResponseWriter: w,
@@ -34,6 +35,6 @@ func ResponseTime(next http.Handler) http.Handler {
 		next.ServeHTTP(wrappedWriter, r)
 
 		duration := time.Since(wrappedWriter.start)
-		fmt.Printf("Request %s %s completed in %s with status %d\n", r.Method, r.URL.Path, duration, wrappedWriter.status)
+		fmt.Printf("<=== ResponseTime Middleware END (Request %s %s completed in %s with status %d)\n", r.Method, r.URL.Path, duration, wrappedWriter.status)
 	})
 }
