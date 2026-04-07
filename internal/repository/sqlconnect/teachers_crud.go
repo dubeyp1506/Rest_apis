@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"restapi/internal/models"
+	"restapi/pkg/utils"
 	"strconv"
 	"strings"
 )
@@ -17,7 +18,7 @@ func GetTeacherHandlerFunc(id int) (models.Teacher, error) {
 	db_name := os.Getenv("DB_NAME")
 	db, err := ConnectDb(db_name)
 	if err != nil {
-		return models.Teacher{}, err
+		return models.Teacher{}, utils.ErrorHandler(err, "Error Connection to db")
 	}
 	defer db.Close()
 
@@ -29,7 +30,7 @@ func GetTeacherHandlerFunc(id int) (models.Teacher, error) {
 	if err == sql.ErrNoRows {
 		return models.Teacher{}, err
 	} else if err != nil {
-		return models.Teacher{}, err
+		return models.Teacher{}, utils.ErrorHandler(err, "Error retrieving teacher")
 	}
 	return teacher, nil
 }
@@ -98,7 +99,8 @@ func AddTeacherHandlerFunc(r *http.Request) ([]models.Teacher, error) {
 		newTeachers = append(newTeachers, singleTeacher)
 	}
 
-	stmt, err := db.Prepare("Insert Into teachers (first_name,last_name, email, class, subject) Values(?,?,?,?,?)")
+	// stmt, err := db.Prepare("Insert Into teachers (first_name,last_name, email, class, subject) Values(?,?,?,?,?)")
+	stmt, err := db.Prepare(generateInsertQuery(models.Teacher{}))
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +109,9 @@ func AddTeacherHandlerFunc(r *http.Request) ([]models.Teacher, error) {
 	addedTeachers := make([]models.Teacher, len(newTeachers))
 
 	for i, newTeacher := range newTeachers {
-		res, err := stmt.Exec(newTeacher.FirstName, newTeacher.LastName, newTeacher.Email, newTeacher.Class, newTeacher.Subject)
+		// res, err := stmt.Exec(newTeacher.FirstName, newTeacher.LastName, newTeacher.Email, newTeacher.Class, newTeacher.Subject)
+		values := getStructValues(newTeacher)
+		res, err := stmt.Exec(values...)
 		if err != nil {
 			return nil, err
 		}
@@ -120,6 +124,43 @@ func AddTeacherHandlerFunc(r *http.Request) ([]models.Teacher, error) {
 		addedTeachers[i] = newTeacher
 	}
 	return newTeachers, nil
+}
+
+func generateInsertQuery(model interface{}) string {
+	modelType := reflect.TypeOf(model)
+	var columns, placeholders string
+
+	for i := 0; i < modelType.NumField(); i++ {
+		dbTag := strings.Split(modelType.Field(i).Tag.Get("db"), ",")[0]
+		fmt.Println(dbTag)
+		if dbTag != "" && dbTag != "id" {
+			if columns != "" {
+				columns += " ,"
+				placeholders += " ,"
+			}
+			columns += dbTag
+			placeholders += "?"
+		}
+	}
+	return fmt.Sprintf("Insert into teachers (%s) values (%s)", columns, placeholders)
+}
+
+func getStructValues(model interface{}) []interface{} {
+	modelValue := reflect.ValueOf(model)
+	if modelValue.Kind() == reflect.Ptr {
+		modelValue = modelValue.Elem()
+	}
+	modeltype := reflect.TypeOf(modelValue)
+	values := []interface{}{}
+
+	for i := 0; i < modeltype.NumField(); i++ {
+		dbTag := strings.Split(modeltype.Field(i).Tag.Get("db"), ",")[0]
+		if dbTag != "" && dbTag != "id" {
+			values = append(values, modelValue.Field(i).Interface())
+		}
+	}
+	return values
+
 }
 
 func DeleteTeachersHandlerFunc(r *http.Request) error {
@@ -189,8 +230,7 @@ func DeleteTeacherHandlerFunc(id int) error {
 func PatchTeacherHandlerFunc(id int, r *http.Request) (models.Teacher, error) {
 	db, err := ConnectDb(os.Getenv("DB_NAME"))
 	if err != nil {
-		fmt.Printf("Error connecting to database: %v\n", err)
-		return models.Teacher{}, err
+		return models.Teacher{}, utils.ErrorHandler(err, "Error connecting to database")
 	}
 	defer db.Close()
 
@@ -206,18 +246,15 @@ func PatchTeacherHandlerFunc(id int, r *http.Request) (models.Teacher, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Printf("Teacher with id %d not found: %v\n", id, err)
 			return models.Teacher{}, err
 		}
-		fmt.Printf("Error retrieving teacher data from DB: %v\n", err)
-		return models.Teacher{}, err
+		return models.Teacher{}, utils.ErrorHandler(err, "Error retrieving teacher data from DB")
 	}
 
 	var updates map[string]interface{}
 	err = json.NewDecoder(r.Body).Decode(&updates)
 	if err != nil {
-		fmt.Printf("Error decoding request body: %v\n", err)
-		return models.Teacher{}, fmt.Errorf("client: Invalid Request Body")
+		return models.Teacher{}, utils.ErrorHandler(err, "client: Invalid Request Body")
 	}
 
 	val := reflect.ValueOf(&existingTeacher).Elem()
@@ -250,8 +287,7 @@ func PatchTeacherHandlerFunc(id int, r *http.Request) (models.Teacher, error) {
 		existingTeacher.FirstName, existingTeacher.LastName, existingTeacher.Email, existingTeacher.Class, existingTeacher.Subject, id)
 
 	if err != nil {
-		fmt.Printf("Error executing update query: %v\n", err)
-		return models.Teacher{}, err
+		return models.Teacher{}, utils.ErrorHandler(err, "Error executing update query")
 	}
 
 	existingTeacher.ID = id // Ensure ID is in the response
@@ -262,8 +298,7 @@ func PatchTeacherHandlerFunc(id int, r *http.Request) (models.Teacher, error) {
 func PatchTeachersHandlerFunc(r *http.Request) error {
 	db, err := ConnectDb(os.Getenv("DB_NAME"))
 	if err != nil {
-		fmt.Printf("Error connecting to database: %v\n", err)
-		return err
+		return utils.ErrorHandler(err, "Error connecting to database")
 	}
 	defer db.Close()
 
@@ -358,16 +393,14 @@ func PatchTeachersHandlerFunc(r *http.Request) error {
 func UpdateTeacherFunc(r *http.Request, id int) (models.Teacher, error) {
 	db, err := ConnectDb(os.Getenv("DB_NAME"))
 	if err != nil {
-		fmt.Printf("Error connecting to database: %v\n", err)
-		return models.Teacher{}, err
+		return models.Teacher{}, utils.ErrorHandler(err, "Error connecting to database")
 	}
 	defer db.Close()
 
 	var updatedTeachers models.Teacher
 	err = json.NewDecoder(r.Body).Decode(&updatedTeachers)
 	if err != nil {
-		fmt.Printf("Error decoding request body: %v\n", err)
-		return models.Teacher{}, fmt.Errorf("client: Invalid Request Body")
+		return models.Teacher{}, utils.ErrorHandler(err, "client: Invalid Request Body")
 	}
 
 	var existingTeacher models.Teacher
@@ -382,18 +415,15 @@ func UpdateTeacherFunc(r *http.Request, id int) (models.Teacher, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Printf("Teacher with id %d not found: %v\n", id, err)
 			return models.Teacher{}, err
 		}
-		fmt.Printf("Error retrieving teacher data from DB: %v\n", err)
-		return models.Teacher{}, err
+		return models.Teacher{}, utils.ErrorHandler(err, "Error retrieving teacher data from DB")
 	}
 	_, err = db.Exec("update teachers set first_name = ? , last_name = ? , email = ? , class = ? , subject = ? where id = ? ",
 		updatedTeachers.FirstName, updatedTeachers.LastName, updatedTeachers.Email, updatedTeachers.Class, updatedTeachers.Subject, id)
 
 	if err != nil {
-		fmt.Printf("Error executing update query: %v\n", err)
-		return models.Teacher{}, err
+		return models.Teacher{}, utils.ErrorHandler(err, "Error executing update query")
 	}
 
 	updatedTeachers.ID = id // Ensure ID is in the response
@@ -404,6 +434,7 @@ func UpdateTeacherFunc(r *http.Request, id int) (models.Teacher, error) {
 func isValidSortOrder(order string) bool {
 	return (order == "asc" || order == "desc")
 }
+
 func isValidFiled(filed string, params map[string]string) bool {
 	_, ok := params[filed]
 	return ok

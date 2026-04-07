@@ -3,10 +3,10 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"restapi/internal/models"
 	"restapi/internal/repository/sqlconnect"
+	"restapi/pkg/utils"
 	"strconv"
 	"strings"
 )
@@ -15,7 +15,7 @@ func GetTeachersHandler(w http.ResponseWriter, r *http.Request) {
 
 	teacherList, err := sqlconnect.GetTeachersHandlerFunc(r)
 	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -29,7 +29,7 @@ func GetTeacherHandler(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		http.Error(w, "Invalid Id Type", http.StatusBadRequest)
+		http.Error(w, utils.ErrorHandler(err, "Invalid Id Type").Error(), http.StatusBadRequest)
 		return
 	}
 	teacher, err := sqlconnect.GetTeacherHandlerFunc(id)
@@ -38,7 +38,7 @@ func GetTeacherHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Teacher Not Found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -56,7 +56,7 @@ func AddTeacherHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -78,8 +78,7 @@ func AddTeacherHandler(w http.ResponseWriter, r *http.Request) {
 func UpdateTeacherHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		fmt.Printf("Error converting id to integer: %v\n", err)
-		http.Error(w, "The id is not an integer", http.StatusBadRequest)
+		http.Error(w, utils.ErrorHandler(err, "The id is not an integer").Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -93,7 +92,7 @@ func UpdateTeacherHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -112,7 +111,7 @@ func PatchTeachersHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -121,8 +120,7 @@ func PatchTeachersHandler(w http.ResponseWriter, r *http.Request) {
 func PatchTeacherHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		fmt.Printf("Error converting id to integer: %v\n", err)
-		http.Error(w, "The id is not an integer", http.StatusBadRequest)
+		http.Error(w, utils.ErrorHandler(err, "The id is not an integer").Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -136,7 +134,7 @@ func PatchTeacherHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -147,7 +145,7 @@ func PatchTeacherHandler(w http.ResponseWriter, r *http.Request) {
 func DeleteTeacherHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		http.Error(w, "Invalid teacher ID", http.StatusBadRequest)
+		http.Error(w, utils.ErrorHandler(err, "Invalid teacher ID").Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -157,7 +155,7 @@ func DeleteTeacherHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Teacher Not Found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -173,7 +171,7 @@ func DeleteTeachersHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
