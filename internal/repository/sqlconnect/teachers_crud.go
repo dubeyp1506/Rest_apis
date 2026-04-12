@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"reflect"
 	"restapi/internal/models"
 	"restapi/pkg/utils"
@@ -16,17 +15,10 @@ import (
 )
 
 func GetTeacherHandlerFunc(id int) (models.Teacher, error) {
-	db_name := os.Getenv("DB_NAME")
-	db, err := ConnectDb(db_name)
-	if err != nil {
-		return models.Teacher{}, utils.ErrorHandler(err, "Error Connection to db")
-	}
-	defer db.Close()
-
 	query := "Select id, first_name, last_name, email, class, subject from teachers where id=? "
 
 	var teacher models.Teacher
-	err = db.QueryRow(query, id).Scan(&teacher.ID, &teacher.FirstName, &teacher.LastName, &teacher.Email, &teacher.Class, &teacher.Subject)
+	err := DB.QueryRow(query, id).Scan(&teacher.ID, &teacher.FirstName, &teacher.LastName, &teacher.Email, &teacher.Class, &teacher.Subject)
 
 	if err == sql.ErrNoRows {
 		return models.Teacher{}, err
@@ -37,19 +29,12 @@ func GetTeacherHandlerFunc(id int) (models.Teacher, error) {
 }
 
 func GetTeachersHandlerFunc(r *http.Request) ([]models.Teacher, error) {
-	db_name := os.Getenv("DB_NAME")
-	db, err := ConnectDb(db_name)
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
 	var args []interface{}
 
 	query := "Select id, first_name, last_name, email, class, subject from teachers where 1=1"
-	query, args = AddFilters(r, query, args)
+	query, args = utils.AddFilters(r, query, args)
 
-	rows, err := db.Query(query, args...)
+	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -72,14 +57,37 @@ func GetTeachersHandlerFunc(r *http.Request) ([]models.Teacher, error) {
 	return teacherList, nil
 }
 
-func AddTeacherHandlerFunc(r *http.Request) ([]models.Teacher, error) {
-	db_name := os.Getenv("DB_NAME")
-	db, err := ConnectDb(db_name)
+func GetStudentCountOfTeacherFunc(id int) (int, error) {
+	query := "Select count(*) from students where class = (select class from teachers where id = ?)"
+	var count int
+	err := DB.QueryRow(query, id).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func GetStudentsOfTeachersFunc(id int) ([]models.Student, error) {
+	query := "Select id, first_name, last_name, email, class from students where class = (select class from teachers where id = ?)"
+	rows, err := DB.Query(query, id)
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	defer rows.Close()
 
+	studentList := []models.Student{}
+	for rows.Next() {
+		var student models.Student
+		err := rows.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Class)
+		if err != nil {
+			return nil, err
+		}
+		studentList = append(studentList, student)
+	}
+	return studentList, nil
+}
+
+func AddTeacherHandlerFunc(r *http.Request) ([]models.Teacher, error) {
 	// 1. Prepare Validation Metadata
 	teacherType := reflect.TypeOf(models.Teacher{})
 	requiredFields := make(map[string]bool)
@@ -130,7 +138,7 @@ func AddTeacherHandlerFunc(r *http.Request) ([]models.Teacher, error) {
 	}
 
 	// 4. Database Persistence
-	stmt, err := db.Prepare(generateInsertQuery(models.Teacher{}))
+	stmt, err := DB.Prepare(utils.GenerateInsertQuery("teachers", models.Teacher{}))
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +147,7 @@ func AddTeacherHandlerFunc(r *http.Request) ([]models.Teacher, error) {
 	addedTeachers := make([]models.Teacher, len(newTeachers))
 
 	for i, newTeacher := range newTeachers {
-		values := getStructValues(newTeacher)
+		values := utils.GetStructValues(newTeacher)
 		res, err := stmt.Exec(values...)
 		if err != nil {
 			return nil, err
@@ -173,31 +181,7 @@ func generateInsertQuery(model interface{}) string {
 	return fmt.Sprintf("Insert into teachers (%s) values (%s)", columns, placeholders)
 }
 
-func getStructValues(model interface{}) []interface{} {
-	modelValue := reflect.ValueOf(model)
-	if modelValue.Kind() == reflect.Ptr {
-		modelValue = modelValue.Elem()
-	}
-	modeltype := modelValue.Type()
-	values := []interface{}{}
-
-	for i := 0; i < modeltype.NumField(); i++ {
-		dbTag := strings.Split(modeltype.Field(i).Tag.Get("db"), ",")[0]
-		if dbTag != "" && dbTag != "id" {
-			values = append(values, modelValue.Field(i).Interface())
-		}
-	}
-	return values
-
-}
-
 func DeleteTeachersHandlerFunc(r *http.Request) error {
-	db, err := ConnectDb(os.Getenv("DB_NAME"))
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
 	var deletes []map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&deletes); err != nil {
 		return err
@@ -224,8 +208,8 @@ func DeleteTeachersHandlerFunc(r *http.Request) error {
 		placeholders[i] = "?"
 	}
 	query := fmt.Sprintf("DELETE FROM teachers WHERE id IN (%s)", strings.Join(placeholders, ","))
-	// 3. Use db.Exec with the list of IDs
-	_, err = db.Exec(query, deleteIdList...)
+	// 3. Use DB.Exec with the list of IDs
+	_, err := DB.Exec(query, deleteIdList...)
 	if err != nil {
 		return err
 	}
@@ -233,13 +217,7 @@ func DeleteTeachersHandlerFunc(r *http.Request) error {
 }
 
 func DeleteTeacherHandlerFunc(id int) error {
-	db, err := ConnectDb(os.Getenv("DB_NAME"))
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	res, err := db.Exec("DELETE FROM teachers WHERE id = ?", id)
+	res, err := DB.Exec("DELETE FROM teachers WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -256,15 +234,9 @@ func DeleteTeacherHandlerFunc(id int) error {
 }
 
 func PatchTeacherHandlerFunc(id int, r *http.Request) (models.Teacher, error) {
-	db, err := ConnectDb(os.Getenv("DB_NAME"))
-	if err != nil {
-		return models.Teacher{}, utils.ErrorHandler(err, "Error connecting to database")
-	}
-	defer db.Close()
-
 	var existingTeacher models.Teacher
 
-	err = db.QueryRow("Select id, first_name, last_name, email, subject, class from teachers where id = ?", id).Scan(
+	err := DB.QueryRow("Select id, first_name, last_name, email, subject, class from teachers where id = ?", id).Scan(
 		&existingTeacher.ID,
 		&existingTeacher.FirstName,
 		&existingTeacher.LastName,
@@ -311,7 +283,7 @@ func PatchTeacherHandlerFunc(id int, r *http.Request) (models.Teacher, error) {
 		}
 	}
 
-	_, err = db.Exec("update teachers set first_name = ? , last_name = ? , email = ? , class = ? , subject = ? where id = ? ",
+	_, err = DB.Exec("update teachers set first_name = ? , last_name = ? , email = ? , class = ? , subject = ? where id = ? ",
 		existingTeacher.FirstName, existingTeacher.LastName, existingTeacher.Email, existingTeacher.Class, existingTeacher.Subject, id)
 
 	if err != nil {
@@ -324,20 +296,14 @@ func PatchTeacherHandlerFunc(id int, r *http.Request) (models.Teacher, error) {
 }
 
 func PatchTeachersHandlerFunc(r *http.Request) error {
-	db, err := ConnectDb(os.Getenv("DB_NAME"))
-	if err != nil {
-		return utils.ErrorHandler(err, "Error connecting to database")
-	}
-	defer db.Close()
-
 	var updates []map[string]interface{}
 
-	err = json.NewDecoder(r.Body).Decode(&updates)
+	err := json.NewDecoder(r.Body).Decode(&updates)
 	if err != nil {
 		return fmt.Errorf("client: invalid JSON body: %v", err)
 	}
 
-	tx, err := db.Begin()
+	tx, err := DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -364,7 +330,7 @@ func PatchTeachersHandlerFunc(r *http.Request) error {
 		}
 
 		var teacherFromDb models.Teacher
-		// Use tx instead of db to keep it in the transaction
+		// Use tx instead of DB to keep it in the transaction
 		err = tx.QueryRow("Select id, first_name, last_name, email, class, subject from teachers where id = ?", id).Scan(
 			&teacherFromDb.ID, &teacherFromDb.FirstName, &teacherFromDb.LastName, &teacherFromDb.Email, &teacherFromDb.Class,
 			&teacherFromDb.Subject,
@@ -419,21 +385,15 @@ func PatchTeachersHandlerFunc(r *http.Request) error {
 }
 
 func UpdateTeacherFunc(r *http.Request, id int) (models.Teacher, error) {
-	db, err := ConnectDb(os.Getenv("DB_NAME"))
-	if err != nil {
-		return models.Teacher{}, utils.ErrorHandler(err, "Error connecting to database")
-	}
-	defer db.Close()
-
 	var updatedTeachers models.Teacher
-	err = json.NewDecoder(r.Body).Decode(&updatedTeachers)
+	err := json.NewDecoder(r.Body).Decode(&updatedTeachers)
 	if err != nil {
 		return models.Teacher{}, utils.ErrorHandler(err, "client: Invalid Request Body")
 	}
 
 	var existingTeacher models.Teacher
 
-	err = db.QueryRow("Select id, first_name, last_name, email, subject, class from teachers where id = ?", id).Scan(
+	err = DB.QueryRow("Select id, first_name, last_name, email, subject, class from teachers where id = ?", id).Scan(
 		&existingTeacher.ID,
 		&existingTeacher.FirstName,
 		&existingTeacher.LastName,
@@ -447,7 +407,7 @@ func UpdateTeacherFunc(r *http.Request, id int) (models.Teacher, error) {
 		}
 		return models.Teacher{}, utils.ErrorHandler(err, "Error retrieving teacher data from DB")
 	}
-	_, err = db.Exec("update teachers set first_name = ? , last_name = ? , email = ? , class = ? , subject = ? where id = ? ",
+	_, err = DB.Exec("update teachers set first_name = ? , last_name = ? , email = ? , class = ? , subject = ? where id = ? ",
 		updatedTeachers.FirstName, updatedTeachers.LastName, updatedTeachers.Email, updatedTeachers.Class, updatedTeachers.Subject, id)
 
 	if err != nil {
@@ -457,54 +417,4 @@ func UpdateTeacherFunc(r *http.Request, id int) (models.Teacher, error) {
 	updatedTeachers.ID = id // Ensure ID is in the response
 	fmt.Printf("Successfully updated teacher with ID %d\n", id)
 	return updatedTeachers, nil
-}
-
-func isValidSortOrder(order string) bool {
-	return (order == "asc" || order == "desc")
-}
-
-func isValidFiled(filed string, params map[string]string) bool {
-	_, ok := params[filed]
-	return ok
-}
-
-func AddFilters(r *http.Request, query string, args []interface{}) (string, []interface{}) {
-	params := map[string]string{
-		"subject":    "subject",
-		"first_name": "first_name",
-		"last_name":  "last_name",
-		"email":      "email",
-		"class":      "class",
-	}
-
-	for param, dbFiled := range params {
-		value := r.URL.Query().Get(param)
-		if value != "" {
-			query += " and " + dbFiled + "=?"
-			args = append(args, value)
-		}
-	}
-	sortParams := r.URL.Query()["sortby"]
-	if len(sortParams) > 0 {
-
-		var sortParts []string
-		for _, sortParam := range sortParams {
-			parts := strings.Split(sortParam, ":")
-			if len(parts) != 2 {
-				continue
-			}
-			field, order := parts[0], parts[1]
-			if !isValidSortOrder(order) || !isValidFiled(field, params) {
-				continue
-			}
-			sortParts = append(sortParts, field+" "+order)
-
-		}
-		if len(sortParts) > 0 {
-			query += " order by " + strings.Join(sortParts, ", ")
-		}
-	}
-
-	fmt.Println(query)
-	return query, args
 }

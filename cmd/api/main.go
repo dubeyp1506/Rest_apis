@@ -22,12 +22,10 @@ func main() {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
-	db_name := os.Getenv("DB_NAME")
-	db, err := sqlconnect.ConnectDb(db_name)
-	if err != nil {
+	if err := sqlconnect.InitDB(); err != nil {
 		panic(err)
 	}
-	fmt.Println("Connected to the db", db)
+	fmt.Println("Connected to the db", sqlconnect.DB)
 	port := os.Getenv("PORT")
 
 	rl := mw.NewRateLimiter(5, time.Minute)
@@ -46,7 +44,7 @@ func main() {
 		WhiteList:                   []string{"first name", "last name", "email", "phone no"},
 	}
 
-	router := router.Router()
+	router := router.MainRouter()
 
 	SecureMx := utils.ApplyMiddleWare(router, mw.Hpp(*hppOptions), mw.Compression, mw.SecurityHandler, mw.ResponseTime, rl.RateLimiterMiddleware, mw.Cors)
 	fmt.Println(SecureMx)

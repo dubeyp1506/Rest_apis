@@ -48,6 +48,58 @@ func GetTeacherHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(teacher)
 }
 
+func GetStudentCountOfTeacher(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "Invalid Id Type", http.StatusBadRequest)
+		return
+	}
+	count, err := sqlconnect.GetStudentCountOfTeacherFunc(id)
+	if err != nil {
+		if strings.Contains(err.Error(), "Client") {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := struct {
+		Status string `json:"status"`
+		Count  int    `json:"count"`
+	}{
+		Status: "success",
+		Count:  count,
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+func GetStudentsOfTeachers(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "Invalid Id Type", http.StatusBadRequest)
+		return
+	}
+	students, err := sqlconnect.GetStudentsOfTeachersFunc(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := struct {
+		Status   string           `json:"status"`
+		Count    int              `json:"count"`
+		Students []models.Student `json:"students"`
+	}{
+		Status:   "success",
+		Count:    len(students),
+		Students: students,
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
 func AddTeacherHandler(w http.ResponseWriter, r *http.Request) {
 
 	newTeachers, err := sqlconnect.AddTeacherHandlerFunc(r)
