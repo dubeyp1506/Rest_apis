@@ -46,15 +46,30 @@ func main() {
 
 	router := router.MainRouter()
 
-	SecureMx := utils.ApplyMiddleWare(router, mw.Hpp(*hppOptions), mw.Compression, mw.SecurityHandler, mw.ResponseTime, rl.RateLimiterMiddleware, mw.Cors)
+	// Wrap the JWTMiddleware to exclude specific routes like login
+	jwtAuth := mw.ExcludeMiddleware(
+		mw.JWTMiddleware,
+		"/login",           // Adjust these paths to precisely match your actual login route
+		"/forgot-password", // e.g. "/execs/login" or similar
+	)
+
+	// Apply all middlewares, including our new jwtAuth
+	SecureMx := utils.ApplyMiddleWare(
+		router,
+		mw.Hpp(*hppOptions),
+		mw.Compression,
+		mw.SecurityHandler,
+		mw.ResponseTime,
+		rl.RateLimiterMiddleware,
+		jwtAuth,
+		mw.Cors,
+	)
 	fmt.Println(SecureMx)
 
 	server := &http.Server{
 		Addr: port,
-		// Handler: mw.Hpp(*hppOptions)(rl.RateLimiterMiddleware(mw.Compression(mw.ResponseTime(mw.SecurityHandler(mw.Cors(router)))))),
-		Handler: mw.SecurityHandler(router),
-		// Handler:   router,
-		// Handler:   middlewares.Cors(router),
+		// Set the server to use the fully secured multiplexer
+		Handler:   SecureMx,
 		TLSConfig: tlsConfig,
 	}
 

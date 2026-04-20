@@ -8,15 +8,15 @@ import (
 func studentsRouter() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /students/", handlers.GetStudentsHandler)
-	mux.HandleFunc("POST /students/", handlers.AddStudentHandler)
-	mux.HandleFunc("PATCH /students/", handlers.PatchStudentsHandler)
-	mux.HandleFunc("DELETE /students/", handlers.DeleteStudentsHandler)
+	mux.HandleFunc("GET /", handlers.GetStudentsHandler)
+	mux.HandleFunc("POST /", handlers.AddStudentHandler)
+	mux.HandleFunc("PATCH /", handlers.PatchStudentsHandler)
+	mux.HandleFunc("DELETE /", handlers.DeleteStudentsHandler)
 
-	mux.HandleFunc("GET /students/{id}", handlers.GetStudentHandler)
-	mux.HandleFunc("PUT /students/{id}", handlers.UpdateStudentHandler)
-	mux.HandleFunc("PATCH /students/{id}", handlers.PatchStudentHandler)
-	mux.HandleFunc("DELETE /students/{id}", handlers.DeleteStudentHandler)
+	mux.HandleFunc("GET /{id}", handlers.GetStudentHandler)
+	mux.HandleFunc("PUT /{id}", handlers.UpdateStudentHandler)
+	mux.HandleFunc("PATCH /{id}", handlers.PatchStudentHandler)
+	mux.HandleFunc("DELETE /{id}", handlers.DeleteStudentHandler)
 
 	return mux
 

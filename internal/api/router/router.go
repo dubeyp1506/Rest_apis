@@ -5,10 +5,12 @@ import (
 )
 
 func MainRouter() *http.ServeMux {
-	tRouter := teachersRouter()
-	sRouter := studentsRouter()
+	mainMux := http.NewServeMux()
 
-	tRouter.Handle("/", sRouter)
+	// Mount sub-routers to their respective prefixes using StripPrefix
+	mainMux.Handle("/teachers/", http.StripPrefix("/teachers", teachersRouter()))
+	mainMux.Handle("/students/", http.StripPrefix("/students", studentsRouter()))
+	mainMux.Handle("/execs/", http.StripPrefix("/execs", execRouter()))
 
-	return tRouter
+	return mainMux
 }
